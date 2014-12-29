@@ -5,25 +5,62 @@
 <!-- <script src="js/leaflet.js"></script> -->
 <script src='https://api.tiles.mapbox.com/mapbox.js/v2.1.2/mapbox.js'></script>
 <script src='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-heat/v0.1.0/leaflet-heat.js'></script>
+<script src='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-draw/v0.2.2/leaflet.draw.js'>
 <script src='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-markercluster/v0.4.0/leaflet.markercluster.js'></script>
-<link href='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-markercluster/v0.4.0/MarkerCluster.css' rel='stylesheet' />
-<link href='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-markercluster/v0.4.0/MarkerCluster.Default.css' rel='stylesheet' />
+<!-- <link href='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-markercluster/v0.4.0/MarkerCluster.css' rel='stylesheet' /> -->
+<!-- <link href='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-markercluster/v0.4.0/MarkerCluster.Default.css' rel='stylesheet' /> -->
+<link href='https://api.tiles.mapbox.com/mapbox.js/v2.1.4/mapbox.css' rel='stylesheet' />
+<link href='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-draw/v0.2.2/leaflet.draw.css' rel='stylesheet' />
+
+</script>
+<script src="js/leaflet-omnivore.js"></script>
+<script src="js/leaflet.ajax.js"></script>
 <script src="js/queue.min.js"></script>
 <script src="js/d3.js"></script>
 <!-- <script src="js/L.D3SvgOverlay.js"></script> -->
-<script src="js/d3.layout.cloud.js"></script>
-<link href='css/leaflet.css' rel='stylesheet' />
+<!-- <script src="js/d3.layout.cloud.js"></script> -->
+<!-- <link href='css/leaflet.css' rel='stylesheet' /> -->
 <script src="js/topojson.v0.js"></script>
-
+<script src="js/leaflet.points-layer.js"></script>
 <link href='css/app.css' rel='stylesheet' />
+<style type="text/css">
+	/* styles for displaying scores from the Walk Score API */
+	.walkscore-scoretext, .walkscore-noscoretext {
+		position: relative;
+		top: -2px;
+		color: #b14900;
+		margin-left: 3px;
+		text-decoration: underline;
+		font-weight: normal;
+	}
+	.walkscore-scoretext {
+		margin-left: 7px;
+		font-weight: bold;
+		font-size: 15px;
+		text-decoration:none;
+	}
+	#walkscore-div a {
+		text-decoration:none;
+	}
 
-</body>
+	/* styles for the info icon */
+	#ws_info {
+		position: relative;
+		top: -5px;
+		margin-left: 4px;
+	}
+</style>
+
+<body>
+<div class="api-branding api-left">
+        <div id="walkscore-div"></div>
+      </div>
 <!-- <form>
 <input type="checkbox" name="vehicle" value="Bike">I have a bike
 <br>
 <input type="checkbox" name="vehicle" value="Car">I have a car 
 </form> -->
 <!-- <div id='map'></div> -->
-<body>
+</body>
 
 <script src="app.js" type="text/javascript"></script>

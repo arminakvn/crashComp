@@ -1,0 +1,26 @@
+{
+  "name": "application-name",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "coffee-script": "~1.5.0",
+    "connect-assets": "~3.0.0-beta1",
+    "eco": "^1.1.0-rc-3",
+    "ejs": "^1.0.0",
+    "express": "~3.1.0",
+    "jade": ">1.0.0",
+    "pg": "^4.1.1",
+    "sequelize": "^2.0.0-rc1",
+    "sequelize-cli": "^1.0.1",
+    "stylus": "*",
+    "underscore": "~1.4.1",
+    "underscore.string": "~2.3.0"
+  },
+  "devDependencies": {
+    "node-dev": "~0.2.8",
+    "mocha": "~1.8.1",
+    "should": "~1.2.0",
+    "npmedge": "~0.1.1",
+    "superagent": "~0.12.4"
+  }
+}
