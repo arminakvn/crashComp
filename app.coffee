@@ -19,7 +19,7 @@ L.ParaText = L.Class.extend(
     map.addLayer this
     this
 
-  formatTime: (d) ->
+  customTimeFormat: (d) ->
     format = d3.time.format.multi([
         [
           ".%L"
@@ -62,7 +62,7 @@ L.ParaText = L.Class.extend(
             return true
         ]
       ])
-    return format
+    return format(d)
 
   removeAnyLocation: ->
     d3.select(@_m.getPanes().overlayPane).select(".leaflet-zoom-animated").selectAll("g")
@@ -76,8 +76,6 @@ L.ParaText = L.Class.extend(
       ]
 
   getDirectionsFromGoogle: (featureGroup) ->
-    console.log "indide getDirectionsFromGoogle"
-    console.log featureGroup
 
   setViewByLocation: (d)-> 
     @_m.setView(new L.LatLng(d.lat, d.long), 19, animation: true, duration: 50)
@@ -125,12 +123,12 @@ L.ParaText = L.Class.extend(
   
   makeD3onMap: ->
     @_map = @_m
-    # @_project = (x) ->
-    #   point = @_map.latLngToLayerPoint(new L.LatLng(x[1], x[0]))
-    #   [
-    #     point.x
-    #     point.y
-    #   ]
+    @_project = (x) ->
+      point = @_map.latLngToLayerPoint(new L.LatLng(x[1], x[0]))
+      [
+        point.x
+        point.y
+      ]
 
     @_el = d3.select(@_map.getPanes().overlayPane).append("svg")
     @_g = @_el.append("g").attr("class", (if @properties.svgClass then @properties.svgClass + " leaflet-zoom-hide" else "leaflet-zoom-hide"))
@@ -147,26 +145,26 @@ L.ParaText = L.Class.extend(
       return @_m.latLngToLayerPoint(d).y
     ).transition().delay(120).duration(1000).attr("r", 80
     ).attr("stroke", "gray"
-    ).attr("stroke-width", "0"
+    ).attr("stroke-width", "10"
     ).attr("fill", "none")
     return @_g
     
 
   makeHeatMap: (d)->
-    # console.log L
-    # console.log "inside heatmap", d
+    @_m.removeLayer @_heat if @_heat
+    monthNameFormat = d3.time.format("%B")
+    console.log d
     draw = true
     # _this._m._initPathRoot()
     coordinates = []
-    for key, value of d
+    for key, value of @text
       try
-        coordinates.push new L.LatLng(value.coordinates.latitude, value.coordinates.longitude)
+        coordinates.push new L.LatLng(value.coordinates.latitude, value.coordinates.longitude) if monthNameFormat(new Date(d3.time.format.iso.parse value.date_time)) == monthNameFormat(d.x)
       catch e
-        coordinates.push new L.LatLng(value.address.latitude, value.address.longitude)
+        coordinates.push new L.LatLng(value.address.latitude, value.address.longitude) if monthNameFormat(new Date(d3.time.format.iso.parse value.date_time)) == monthNameFormat(d.x)
       
-    # console.log "@_m", @_m
     @_heat = L.heatLayer(coordinates,
-      maxZoom: 18
+      maxZoom: 16
     )
     @_heat.addTo(@_m)
     # @_heat.addLatLng coordinates 
@@ -174,7 +172,6 @@ L.ParaText = L.Class.extend(
     @_viewSet = @_m.getCenter() if @_viewSet is undefined
     @_zoomSet = @_m.getZoom() if @_viewZoom is undefined
     @_m.on "load", ->
-        # console.log "inside onload"
         # _this._m._initPathRoot()
         # coordinates = []
         # coordinates.push new L.LatLng(value.coordinates.latitude, value.coordinates.longitude) for key, value of @text
@@ -183,9 +180,7 @@ L.ParaText = L.Class.extend(
         # # )
         # # @_heat.addTo(_this._m)
         # # _this._m.setView(new L.LatLng(d.coordinates.latitude, d.coordinates.longitude), 14, animation: true, duration: 500)
-        # console.log "@_heat", @_heat
         # return @_heat => L.heatLayer(coordinates).addTo(_this._m)
-      console.log "inside onload"
       return
     @_m.setView (new L.LatLng(@_viewSet.lat, @_viewSet.lng)), @_viewZoom 
     
@@ -209,8 +204,6 @@ L.ParaText = L.Class.extend(
         return
 
   makeDiv: (name, position) ->
-    console.log name
-    console.log position
     divControl = L.Control.extend(  
       initialize: =>
 
@@ -221,37 +214,36 @@ L.ParaText = L.Class.extend(
         L.DomUtil.enableTextSelection(_domEl)  
         @_m.getContainer().getElementsByClassName("leaflet-control-container")[0].appendChild(_domEl)
         _domObj = $(L.DomUtil.get(_domEl))
-        _domObj.css('width', $(@_m.getContainer())[0].clientWidth/3)
+        _domObj.css('width', $(@_m.getContainer())[0].clientWidth)
         _domObj.css('height', $(@_m.getContainer())[0].clientHeight/4)
-        _domObj.css('background-color', 'white')
+        _domObj.css('background-color', 'gray')
         # _domObj.css('overflow', 'scroll')
         L.DomUtil.setOpacity(L.DomUtil.get(_domEl), 0.8)
         # here it needs to check to see if there is any vewSet avalable if not it should get it from the lates instance or somethign
-        L.DomUtil.setPosition(L.DomUtil.get(_domEl), L.point(540, 0), disable3D=0)
+        L.DomUtil.setPosition(L.DomUtil.get(_domEl), L.point(0, $(@_m.getContainer())[0].clientHeight/2 + $(@_m.getContainer())[0].clientHeight/4), disable3D=0)
         # @_d3El = d3.select("." + name + "-info")
     )
     new divControl()
     
       
   addControlToDiv: (controlerDiv) ->
-    # console.log "controlerDiv", controlerDiv
+    console.log @text
     controlerDivEl = @_m.getContainer().getElementsByClassName("leaflet-control-container")[0].getElementsByClassName("container "+controlerDiv+"-info")[0]
-    # console.log controlerDivEl
     layerSwitchForm = L.DomUtil.create("form")
     layerSwitchInput = L.DomUtil.create("input", "layerSwitch", layerSwitchForm)
     $(layerSwitchInput).attr("type", "button")
+    $(layerSwitchInput).attr("position", "absolute")
+    $(layerSwitchInput).attr("top", "0px")
+    $(layerSwitchInput).attr("right", "0px")
     $(layerSwitchInput).attr("name", "layerSwitch")
-    $(layerSwitchInput).attr("value", "Bike Path")
+    $(layerSwitchInput).attr("value", "By Object1")
     L.DomEvent.addListener layerSwitchInput, 'click', (e) =>
-            e.preventDefault()
-            e.stopPropagation()
-            console.log @
-            queue().defer(d3.json, "https://data.cambridgema.gov/resource/vydm-qk5p.json").await (err, data) ->
-              console.log data
-              _this.makeHeatMap(data)
-              console.log _this._m._layers
-              _this.makeLayerController()
-              return 
+            # e.preventDefault()
+            # e.stopPropagation()
+            # queue().defer(d3.json, "https://data.cambridgema.gov/resource/vydm-qk5p.json").await (err, data) ->
+            #   _this.makeHeatMap(data)
+            #   _this.makeLayerController()
+            #   return 
     layerSwitchInputRem = L.DomUtil.create("input", "layerSwitch", layerSwitchForm)
     $(layerSwitchInputRem).attr("type", "button")
     $(layerSwitchInputRem).attr("name", "layerSwitchRem")
@@ -261,14 +253,10 @@ L.ParaText = L.Class.extend(
             e.preventDefault()
             e.stopPropagation()
             [first, ..., last] = @_m._layers
-            console.log first
-            console.log @_m._layers[0]
-            console.log $("#{@_m._layers}:last-child")
   
   # addLayerFromSODA: (sodaurl) ->
     # geojsonLayer = new L.GeoJSON.AJAX(sodaurl).addTo @_m
     # geojsonLayer.onAdd (map) ->
-      # console.log "on Add", map
     
     # L.Util.ajax(sodaurl).then (data) ->
     #   onFulfilled: data 
@@ -289,11 +277,8 @@ L.ParaText = L.Class.extend(
     @makeDiv {position: "topright", className: "container slider-info"}
 
   loadLayer: (layer)->
-    console.log layer
     geojsonLayer = new L.GeoJSON.AJAX(layer)
-    console.log geojsonLayer
     geojsonLayer.onAdd (map) ->
-      console.log "on add"
     return 
 
   showPathDirection: (map)->
@@ -326,17 +311,12 @@ L.ParaText = L.Class.extend(
     )
     map.on "draw:created", (e) =>
       featureGroup.addLayer e.layer
-      # console.log featureGroup
-      # console.log @
       type = e.layerType
       layer = e.layer
-      console.log "e", e
-      console.log "layer", layer
       latLngs = undefined
       if type is "circle"
         latLngs = layer.getLatLng()
       else if type is "marker"
-        console.log "matker"
         latLngs = layer._latlng
       else # Returns an array of the points in the path.
         latLngs = layer.getLatLngs()
@@ -344,73 +324,98 @@ L.ParaText = L.Class.extend(
       return
     drawControl
 
-  injectWalkScore: (address, lat, lon) ->
-    address = encodeURIComponent(address)
-    url = "api-sample-code-get-walkscore.php?address=" + address + "&lat=" + lat + "&lon=" + lon
-    $.ajax
-      url: url
-      type: "GET"
-      success: (data) ->
-        _this.displayWalkScores data
-        return
+  groupBy: ->
+    monthNameFormat = d3.time.format("%B")
+    features = @_geoJson.features.map( (d) ->
+      return new Date(d3.time.format.iso.parse(d.properties.date_time))
+      )
+    nest = d3.nest().key((d) ->
+      monthNameFormat(d)
+    # ).key((d) ->
+    #   d.properties.day_of_week
+    ).rollup((d) ->
+      d.length
+    ).entries(features)
+    
+    return nest
 
-      error: ->
-        _this.displayWalkScores ""
-        return
 
-    return
+# data = d3.nest().key((d) ->
+#   d.date
+# ).rollup((d) ->
+#   d3.sum d, (g) ->
+#     g.value
 
-  #to demonstrate all of our formatting options, we'll pass the json on to a series of display functions.
-  #in practice, you'll only need one of these, and the ajax call could call it directly as it's onSuccess callback
-  displayWalkScores: (jsonStr) ->
-    _this.displayWalkScore jsonStr
-    return
-
-  #show the walk score -- inserts walkscore html into the page.  Also needs CSS from top of file
-  displayWalkScore: (jsonStr) ->
-    json = (if (jsonStr) then eval("(" + jsonStr + ")") else "") #if no response, bypass the eval
-    
-    #if we got a score
-    if json and json.status is 1
-      htmlStr = "<a target=\"_blank\" href=\"" + json.ws_link + "\"><img src=\"" + json.logo_url + "\" /><span class=\"walkscore-scoretext\">" + json.walkscore + "</span></a>"
-    
-    #if no score was available
-    else if json and json.status is 2
-      htmlStr = "<a target=\"_blank\" href=\"" + json.ws_link + "\"><img src=\"" + json.logo_url + "\" /> <span class=\"walkscore-noscoretext\">Get Score</span></a>"
-    
-    #if didn't even get a json response
-    else
-      htmlStr = "<a target=\"_blank\" href=\"https://www.walkscore.com\"><img src=\"//cdn2.walk.sc/2/images/api-logo.png\" /> <span class=\"walkscore-noscoretext\">Get Score</span></a> "
-    infoIconHtml = "<span id=\"ws_info\"><a href=\"http://www.walkscore.com/live-more\" target=\"_blank\"><img src=\"//cdn2.walk.sc/2/images/api-more-info.gif\" width=\"13\" height=\"13\"\" /></a></span>"
-    
-    #if you want to wrap extra tags around the html, can do that here before inserting into page element
-    htmlStr = "<p>" + htmlStr + infoIconHtml + "</p>"
-    
-    #insert our new content into the container div:
-    $("#walkscore-div").html htmlStr
-    return
+# ).entries(csv_data)
 
   timeserries: ->
     # get the DOM container if not exist make it
+    counts = @groupBy()
+    all_dates = []
+    values = []
+    d3.map(counts).forEach (index, value) => 
+      values.push(value.values)
+      all_dates.push(value.key)
+    
+    months = []
+      
+    all_dates.shift()
+    values.shift()
+    all_dates.shift()
+    values.shift()
+    all_dates.unshift "x"
+    values.unshift "Accident Frequency"
+    
     try
-      container = L.DomUtil.get(document.getElementsByClassName("container control-info")[0])
+        container = L.DomUtil.get(document.getElementsByClassName("container control-info")[0])
     catch e
-      console.log "e"
       @makeDiv("control", "bottomleft")
       container = L.DomUtil.get(document.getElementsByClassName("container control-info")[0])
+    margin =
+      top: 5
+      right: 5
+      bottom: 40
+      left: 45
+    width = 960 - margin.left - margin.right
+    height = 80
+    d3.select(container).append("div").attr("id", "chart")
+    console.log values, all_dates
+    chart = c3.generate(
+      data:
+        onmouseover: (d, element) => @makeHeatMap(d)
+        x: "x"
+        xFormat: "%B"
+        columns: [
+          all_dates
+          values
+          
+          #            ['x', '20130101', '20130102', '20130103', '20130104', '20130105', '20130106'],
+        ]
 
-    console.log "container: ", container
-
-    console.log d3.extent(d3.map(@text).forEach(get_time))
+      axis:
+        x:
+          type: "timeseries"
+          tick:
+            format: d3.time.format("%B")
+      size:
+        height: $(@_m.getContainer())[0].clientHeight/4
+        width: $(@_m.getContainer())[0].clientWidth - 100
+    )
+    setTimeout (->
+      chart.load columns: [
+        # values
+      ]
+      return
+    ), 1000
+    # d3.selectAll
+    # chart = @timeseries(all_dates).x(get_time).xLabel("Time").y(get_magnitude).yLabel("Frequency").brushmove(on_brush)    
+    # d3.select("body").datum(@_geoJson.features).call chart
+    # series = d3.select(container).append("svg").attr("id", "accidents-timeseries").attr("width", width + margin.left + margin.right).attr("height", height + margin.top + margin.bottom).append("g").attr("id", "date-brush").attr("transform", "translate(" + margin.left + "," + margin.top + ")")
     
-    x = d3.time.scale()
-    y = d3.scale.linear()
-    get_time = (d) ->
-      d3.time.format.iso.parse d.date_time
-    # for each in @text
-    #   console.log get_time(each)
+    
     map = @_m
-    console.log "@_geoJson", @_geoJson
+
+
 
     L.pointsLayer(@_geoJson,
       # radius: get_radius
@@ -418,6 +423,82 @@ L.ParaText = L.Class.extend(
     ).addTo map 
     # chart = timeseries_chart(scheme).x(get_time).xLabel("Earthquake origin time").y(get_magnitude).yLabel("Magnitude").brushmove(on_brush)
     # d3.select("body").datum(@_geoJson.features).call chart
+
+  # timeseries: (selection) ->
+  #     selection.each (d) ->
+  #       x.range [
+  #         0
+  #         width
+  #       ]
+  #       y.range [
+  #         height
+  #         0
+  #       ]
+        
+  #       x_axis = series.append("g").attr("class", "x axis").attr("transform", "translate(0," + height + ")")
+  #       y_axis = series.append("g").attr("class", "y axis")
+  #       x_axis.append("text").attr("class", "label").attr("x", width).attr("y", 30).style("text-anchor", "end").text x_label
+  #       y_axis.append("text").attr("class", "label").attr("transform", "rotate(-90)").attr("y", -40).attr("dy", ".71em").style("text-anchor", "end").text y_label
+  #       series.append("clipPath").attr("id", "clip").append("rect").attr("width", width - 1).attr("height", height - .25).attr "transform", "translate(1,0)"
+  #       series.append("g").attr("class", "brush").call(brush).selectAll("rect").attr("height", height).style("stroke-width", 1).style("stroke", color[color.length - 1]).style("fill", color[2]).attr "opacity", 0.4
+  #       x.domain d3.extent(d, get_x)
+  #       x_axis.call d3.svg.axis().scale(x).orient("bottom")
+  #       y.domain d3.extent(d, get_y)
+  #       y_axis.call d3.svg.axis().scale(y).orient("left")
+  #       series.append("g").attr("class", "timeseries").attr("clip-path", "url(#clip)").selectAll("circle").data(d).enter().append("circle").style("stroke", color[color.length - 2]).style("stroke-width", .5).style("fill", color[color.length - 1]).attr("opacity", .4).attr("r", 2).attr "transform", (d) ->
+  #         "translate(" + x(get_x(d)) + "," + y(get_y(d)) + ")"
+
+    
+
+  #       _brushmove = ->
+  #         brushmove.call null, brush
+  #         return
+  #       no_op = ->
+  #       timeseries.x = (accessor) ->
+  #         return get_x  unless arguments.length
+  #         get_x = accessor
+  #         timeseries
+
+  #       timeseries.y = (accessor) ->
+  #         return get_y  unless arguments.length
+  #         get_y = accessor
+  #         timeseries
+
+  #       timeseries.xLabel = (label) ->
+  #         return x_label  unless arguments.length
+  #         x_label = label
+  #         timeseries
+
+  #       timeseries.yLabel = (label) ->
+  #         return y_label  unless arguments.length
+  #         y_label = label
+  #         timeseries
+
+  #       timeseries.brushmove = (cb) ->
+  #         return brushmove  unless arguments.length
+  #         brushmove = cb
+  #         timeseries
+        
+  #       x = d3.time.scale()
+  #       y = d3.scale.linear()
+  #       x_label = "X"
+  #       y_label = "Y"
+  #       # brush = d3.svg.brush().x(x).on("brush", _brushmove)
+  #       get_x = no_op
+  #       get_y = no_op
+
+  #       # reduced = all_dates.reduce (previousValue, currentValue, index, array) =>
+  #       #   return
+
+
+        
+  #       x = d3.time.scale()
+  #       y = d3.scale.linear()
+  #       get_time = (d) ->
+  #         d3.time.format.iso.parse d.date_time
+  #       # extent = d3.extent(all_dates)
+  #       # x.domain(extent)
+
 
   _circle_style: (circles) ->
     # unless extent and scale
@@ -461,7 +542,6 @@ L.ParaText = L.Class.extend(
       ]
     for each in @text
       @_geoJson.features.push {"type": "Feature", "geometry":{"type": "point", "coordinates": [+each.coordinates.longitude, +each.coordinates.latitude]}, "properties": each} if each.coordinates.latitude isnt "0"
-    # console.log "@_geoJson:", @_geoJson
 
 
   makeMap: ->
@@ -477,7 +557,7 @@ L.ParaText = L.Class.extend(
       ).setView([
       42.36653483201389
       -71.12146908569336
-    ], 15)
+    ], 13)
     @makeLayerController()
     # @_m.dragging.disable()
     # @makeHeatMap()
@@ -486,7 +566,7 @@ L.ParaText = L.Class.extend(
     # @makeHeatMap()
     # @makeD3onMap()
     drawControl = @showPathDirection(@_m)
-    drawControl.addTo @_m
+    # drawControl.addTo @_m
     textControl = L.Control.extend(
       options:
         position: "topleft"
@@ -580,7 +660,7 @@ L.ParaText = L.Class.extend(
 
     )
 
-    @_m.addControl new textControl()
+    # 
   
     return @_m
 
@@ -602,57 +682,19 @@ addChainedAttributeAccessor = (obj, propertyAttr, attr) ->
 #################
 queue().defer(d3.json, "https://data.cambridgema.gov/resource/ybny-g9cv.json").await (err, texts) ->
   draw texts
-  # update texts
   return
 
 draw = (data) ->
-  # brush = d3.svg.brush().x(x).on("brush", _brushmove)
 
   paratext = L.paratext(data)
   textmap = paratext.makeMap()
   paratext.parseGeoJson()
-  # heatmap = paratext.makeHeatMap(paratext.text)
-  # d3onmap = paratext.makeD3onMap()
+  d3onmap = paratext.makeD3onMap()
   control = paratext.makeDiv("control", "bottomleft")
-  console.log "control", control
   timeserries = paratext.timeserries()
-  texts = d3.selectAll("li")
-  # ajaxSoda = paratext.addLayerFromSODA("https://data.cambridgema.gov/resource/vydm-qk5p.json").then
-  # console.log "ajaxSoda", ajaxSoda
-  addControlToDiv = paratext.addControlToDiv("control")
-  
-  # pathdirection = paratext.showPathDirection()
-  # L.DomUtil.create
 
-  # bding the L.D3 to jQuery and assiging data from and to datum
-  $texts = $(texts[0])
-  $texts.each ->
-    $(this).data "datum", $(this).prop("__data__")
-    return
-  # jQuery handles the clicks
   timeout = undefined
 timeout = 0
-update = (data) ->
-  paratext = L.paratext(data)
-  console.log paratext
-  for each in data
-      setInterval (->
-        # nodes.push id: ~~(Math.random() * foci.length)
-        # force.start()
-        ç
-
-        # node = node.data(nodes)
-        # node.enter().append("circle").attr("class", "node").attr("cx", (d) ->
-        #   d.x
-        # ).attr("cy", (d) ->
-        #   d.y
-        # ).attr("r", 8).style("fill", (d) ->
-        #   fill d.id
-        # ).style("stroke", (d) ->
-        #   d3.rgb(fill(d.id)).darker 2
-        # ).call force.drag
-        return 
-      ), 1500
       
     
 # update()
