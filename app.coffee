@@ -13,75 +13,116 @@ L.ParaText = L.Class.extend(
         lat: 0
         long: 0
     return
-  # addChainedAttributeAccessor(this, 'properties', attr) for attr of @properties
 
   addTo: (map) ->
     map.addLayer this
     this
 
-  getD3: ->
-    @_count = 0
-    @_canvas = $(".canvas")
-    @_width = @_canvas.width() - @properties._margin.l - @properties._margin.r
-    @_height = @_canvas.height() - @properties._margin.t - @properties._margin.b
-    @_svg = d3.select(".").append("svg").attr("width", @_width + @properties._margin.l + @properties._margin.r).attr("height", @_height + @properties._margin.t + @properties._margin.b).append("g").attr("transform", "translate(" + @properties._margin.l + "," + @properties._margin.t + ")")
-    @_svg.selectAll("text").data(@properties.text).enter().append("text").attr("width", 2400).attr("height", 200)
-    .style("font-family", "Impact").attr("fill", "black").text((d) ->
-      d.description
-    ).on("mouseover", ->
-      d3.select(this).transition().duration(300).style "fill", "gray"
-      # 
-      return
-    ).on("mouseout", ->
-      d3.select(this).transition().duration(300).style "fill", "black"
-      return
-    ).transition().delay(0).duration(1).each("start", ->
-      d3.select(this).transition().duration(1).attr "y", ((@_count + 1) * 30)
-      @_count = @_count + 1
-      return
-    ).transition().duration(11).delay(1).style "opacity", 1
-    @_count = @_count + 1
-    return @_svg
-  
-  makeD3onMap: ->
-    @_map = @_m
-    @_project = (x) ->
-      point = @_map.latLngToLayerPoint(new L.LatLng(x[1], x[0]))
+  customTimeFormat: (d) ->
+    format = d3.time.format.multi([
+        [
+          ".%L"
+          (d) ->
+            return d.getMilliseconds()
+        ]
+        [
+          ":%S"
+          (d) ->
+            return d.getSeconds()
+        ]
+        [
+          "%I:%M"
+          (d) ->
+            return d.getMinutes()
+        ]
+        [
+          "%I %p"
+          (d) ->
+            return d.getHours()
+        ]
+        [
+          "%a %d"
+          (d) ->
+            return d.getDay() and d.getDate() isnt 1
+        ]
+        [
+          "%b %d"
+          (d) ->
+            return d.getDate() isnt 1
+        ]
+        [
+          "%B"
+          (d) ->
+            return d.getMonth()
+        ]
+        [
+          "%Y"
+          ->
+            return true
+        ]
+      ])
+    return format(d)
+
+  removeAnyLocation: ->
+    d3.select(@_m.getPanes().overlayPane).select(".leaflet-zoom-animated").selectAll("g")
+    .data([]).exit().remove()
+
+  _projectPoint: (x) ->
+      point = @_m.latLngToLayerPoint(new L.LatLng(x[1], x[0]))
       [
         point.x
         point.y
       ]
 
-    @_el = d3.select(@_map.getPanes().overlayPane).append("svg")
-    @_g = @_el.append("g").attr("class", (if @properties.svgClass then @properties.svgClass + " leaflet-zoom-hide" else "leaflet-zoom-hide"))
+  showLocation: (d) ->
     featureData =[]
-    featureData.push new L.LatLng(value.coordinates.latitude, value.coordinates.longitude) for key, value of @text # new L.LatLng(d.lat, d.long)
+    featureData.push new L.LatLng(d.coordinates.latitude, d.coordinates.longitude)
     @_g = d3.select(@_m.getPanes().overlayPane).select(".leaflet-zoom-animated").selectAll("g")
-    @_g.data(featureData).enter().append("g").append("circle").attr("r", 60
-    ).attr("stroke", "lightcoral"
+    @_g.data(featureData).enter().append("g").append("circle").attr("r", 0
+    ).attr("stroke", "white"
     ).attr("fill", "none"
-    ).attr("cx", (d) =>
-      @_m.latLngToLayerPoint(d).x
-    ).attr("cy", (d) =>
-      @_m.latLngToLayerPoint(d).y
-    ).transition().delay(30).duration(1000).attr("r", 4
+    ).attr("stroke-width", "10"
     ).attr("cx", (d) =>
       return @_m.latLngToLayerPoint(d).x
     ).attr("cy", (d) =>
       return @_m.latLngToLayerPoint(d).y
-    ).transition().delay(30).duration(1000).attr("r", 2
-    ).attr("stroke", "yellow")
-    return @_g
+    ).transition().delay(120).duration(1000).attr("r", 80
+    ).attr("stroke", "gray"
+    ).attr("stroke-width", "0"
+    ).attr("fill", "none")
     
 
-  makeHeatMap: ->
-    console.log "inside heatmap"
+  formatTime: (arg)->
+    if arg == "month"
+      return monthNameFormat = d3.time.format("%B")
+    else if arg == "day"
+      return dayNameFormat = d3.time.format("%Y-%m-%d")
+    else if arg == "hour"
+      return HourNameFormat = d3.time.format("%H")
+
+  makeHeatMap: (d, max_zoom, time_interval)->
+    @_m.removeLayer @_heat if @_heat
+
+    @formatTime(time_interval)
+
+    console.log d
     draw = true
-    # _this._m._initPathRoot()
     coordinates = []
-    coordinates.push new L.LatLng(value.coordinates.latitude, value.coordinates.longitude) for key, value of @text
+    if d == @text
+      for key, value of @text
+        try
+          coordinates.push new L.LatLng(value.coordinates.latitude, value.coordinates.longitude) 
+        catch e
+          coordinates.push new L.LatLng(value.address.latitude, value.address.longitude) 
+    else
+      for key, value of @text
+        try
+          coordinates.push new L.LatLng(value.coordinates.latitude, value.coordinates.longitude) if @formatTime(time_interval)(new Date(d3.time.format.iso.parse value.date_time)) == @formatTime(time_interval)(d.x)
+        catch e
+          coordinates.push new L.LatLng(value.address.latitude, value.address.longitude) if @formatTime(time_interval)(new Date(d3.time.format.iso.parse value.date_time)) == @formatTime(time_interval)(d.x)
+        
     @_heat = L.heatLayer(coordinates,
-      maxZoom: 18
+      maxZoom: max_zoom
     )
     @_heat.addTo(@_m)
     # @_heat.addLatLng coordinates 
@@ -89,18 +130,6 @@ L.ParaText = L.Class.extend(
     @_viewSet = @_m.getCenter() if @_viewSet is undefined
     @_zoomSet = @_m.getZoom() if @_viewZoom is undefined
     @_m.on "load", ->
-        # console.log "inside onload"
-        # _this._m._initPathRoot()
-        # coordinates = []
-        # coordinates.push new L.LatLng(value.coordinates.latitude, value.coordinates.longitude) for key, value of @text
-        # # @_heat = L.heatLayer(coordinates,
-        # #   maxZoom: 18
-        # # )
-        # # @_heat.addTo(_this._m)
-        # # _this._m.setView(new L.LatLng(d.coordinates.latitude, d.coordinates.longitude), 14, animation: true, duration: 500)
-        # console.log "@_heat", @_heat
-        # return @_heat => L.heatLayer(coordinates).addTo(_this._m)
-      console.log "inside onload"
       return
     @_m.setView (new L.LatLng(@_viewSet.lat, @_viewSet.lng)), @_viewZoom 
     
@@ -123,31 +152,232 @@ L.ParaText = L.Class.extend(
       mousemove: (e) =>
         return
 
-  makeDiv: (name)->
-    _domEl = L.DomUtil.create('div', "." + name + "-info")
-    _el = L.DomUtil.create('svg', 'svg')
-    @_m.getPanes().overlayPane.appendChild(_el)
-    L.DomUtil.enableTextSelection(_domEl)  
-    @_m.getPanes().overlayPane.appendChild(_domEl)
-    _domObj = $(L.DomUtil.get(_domEl))
-    _domObj.css('width', $(@_m.getContainer())[0].clientWidth/3)
-    _domObj.css('height', $(@_m.getContainer())[0].clientHeight)
-    _domObj.css('background-color', 'white')
-    _domObj.css('overflow', 'scroll')
-    L.DomUtil.setOpacity(L.DomUtil.get(_domEl), 0.8)
-    # here it needs to check to see if there is any vewSet avalable if not it should get it from the lates instance or somethign
-    @_viewSet = @_m.getCenter() if @_viewSet is undefined
-    L.DomUtil.setPosition(L.DomUtil.get(_domEl), L.point(40, -65), disable3D=0)
-    @_d3El = d3.select("." + name + "-info")
+  makeDiv: (name, position) ->
+    divControl = L.Control.extend(  
+      initialize: =>
 
+        _domEl = L.DomUtil.create('div', "container " + name + "-info")
+        L.DomUtil.enableTextSelection(_domEl)  
+        @_m.getContainer().getElementsByClassName("leaflet-control-container")[0].appendChild(_domEl)
+        _domObj = $(L.DomUtil.get(_domEl))
+        _domObj.css('width', $(@_m.getContainer())[0].clientWidth)
+        _domObj.css('height', $(@_m.getContainer())[0].clientHeight/4)
+        _domObj.css('background-color', 'black')
+        L.DomUtil.setOpacity(L.DomUtil.get(_domEl), 1)
+        L.DomUtil.setPosition(L.DomUtil.get(_domEl), L.point(0, $(@_m.getContainer())[0].clientHeight/2 + $(@_m.getContainer())[0].clientHeight/4), disable3D=0)
+        # filter_el = L.DomUtil.create('select', 'filter', _domEl)
+        # $(L.DomUtil.get(filter_el)).css('position', 'absolute').css('right', '50px').append('<option>by hour</option><option>by day</option>')
+        # L.DomEvent.addListener L.DomUtil.get(filter_el), 'click', (e) =>
+        #     e.preventDefault()
+        #     e.stopPropagation()
+        # console.log filter_el
+    )
+    legend = L.control(position: "bottomright")
+    legend.onAdd = (map) =>
+      div = L.DomUtil.create("div", "info legend")
+      div.innerHTML = "<form class='target'><select class='target'><option>by month</option><option>by day</option><option>hour</option></select></form>"
+      L.DomEvent.on div.firstChild.firstElementChild, "change", (e) ->
+        console.log @, _this
+        unless @value is "none"
+          console.log @value
+          _this._chart.unload()
+          counts = _this.groupBy("date_time", @value.replace('by ', ''))
+          all_dates = []
+          values = []
+          d3.map(counts).forEach (index, value) => 
+            console.log d3.time.format("%Y-%m-%d").parse(value.key)
+            values.push(value.values)
+            all_dates.push(value.key)
+          
+          months = []
+            
+          all_dates.shift()
+          values.shift()
+          all_dates.shift()
+          values.shift()
+          all_dates.unshift "x"
+          values.unshift "Accident Frequency"
+          # if timearg == "month"
+          #   timeformater = "%B"
+          # else if timearg == "day"
+          #   timeformater = "%a"
+          # else if timearg == "hour"
+          #   timeformater = "%H"
+          _this._chart.load(columns: [
+            values
+            all_dates
+          ])
 
-  makeSlider: ->
-    @makeDiv {position: "topright", className: "container slider-info"}
+        else
+          console.log "kldkd!!"
+
+        return
+
+      div.firstChild.onmousedown = div.firstChild.ondblclick = L.DomEvent.stopPropagation
+      div
+    new divControl()
+    legend.addTo @_m
+    
+      
+  
+  makeLayerController: ->
+    L.control.layers(
+      "Base Map": L.mapbox.tileLayer("arminavn.ib1f592g").addTo(@_m)
+      "Open Street": L.mapbox.tileLayer("arminavn.jl495p2g")
+    ,
+    ).addTo @_m
+
+  groupBy: (by_field, timearg)->
+    monthNameFormat = d3.time.format("%B")
+    dayNameFortmat = d3.time.format("%a")
+    if by_field = "date_time"
+      features = @_geoJson.features.map( (d) ->
+        return new Date(d3.time.format.iso.parse(d.properties.date_time))
+        )
+      nest = d3.nest().key((d) =>
+        @formatTime(timearg)(d)
+        # dayNameFortmat(d)
+      # ).key((d) ->
+      #   d.properties.day_of_week
+      ).sortKeys((d) ->
+        return
+      ).rollup((d) ->
+        d.length
+      ).entries(features)
+    else
+      features = @_geoJson.features.map( (d) ->
+        return d
+        )
+      nest = d3.nest().key((d) ->
+        "d.properties.#{by_field}"
+      # ).key((d) ->
+      #   d.properties.day_of_week
+      ).rollup((d) ->
+        d.length
+      ).entries(features)
+
+    return nest
+
+  timeserries: (timearg)->
+    counts = @groupBy("date_time", timearg)
+    all_dates = []
+    values = []
+    d3.map(counts).forEach (index, value) => 
+      values.push(value.values)
+      all_dates.push(value.key)
+    
+    months = []
+      
+    all_dates.shift()
+    values.shift()
+    all_dates.shift()
+    values.shift()
+    all_dates.unshift "x"
+    values.unshift "Accident Frequency"
+    if timearg == "month"
+      timeformater = "%B"
+    else if timearg == "day"
+      timeformater = "%Y-%m-%d"
+    else if timearg == "hour"
+      timeformater = "%H"
+
+    try
+        container = L.DomUtil.get(document.getElementsByClassName("container control-info")[0])
+    catch e
+      @makeDiv("control", "bottomleft")
+      container = L.DomUtil.get(document.getElementsByClassName("container control-info")[0])
+    L.DomUtil.enableTextSelection(container) 
+    L.DomEvent.on container, "mouseover", (e) =>
+      @_m.dragging.disable()
+      return
+    L.DomEvent.on container, "mouseout", (e) =>
+      @_m.dragging.enable()
+      return
+        
+    margin =
+      top: 5
+      right: 5
+      bottom: 40
+      left: 45
+    width = 960 - margin.left - margin.right
+    height = 80
+    d3.select(container).append("div").attr("id", "chart")
+    console.log values, all_dates
+    console.log "chart", @_chart
+    if @_chart isnt undefined
+      @_chart.unload("x", "Accident Frequency")
+      @_chart.load columns: [
+        values
+        all_dates
+      ]
+      return
+    else
+      @_chart = c3.generate(
+        data:
+          onmouseover: (d, element) => @makeHeatMap(d, 17, timearg)
+          x: "x"
+          xFormat: timeformater
+          columns: [
+            all_dates
+            values
+            
+          ]
+
+        axis:
+          x:
+            type: "timeseries"
+            tick:
+              format: d3.time.format(timeformater)
+        size:
+          height: $(@_m.getContainer())[0].clientHeight/4
+          width: $(@_m.getContainer())[0].clientWidth - 100
+
+        legend:
+          item:
+            onmouseover: => @makeHeatMap(@text, 19, timearg)
+            onmouseout: => 
+              @makeHeatMap([])
+              tooltip:
+                content: "Show All"
+                show: true
+      )
+      @_chart.unload()
+      setTimeout (=>
+        @_chart.load columns: [
+          values
+        ]
+        return
+      ), 1000
+      
+      
+      return chart
+    all_dates = []
+    values = []
+    return
+
+  parseGeoJson: ->
+    @_geoJson =
+      type: "FeatureCollection"
+      features: [
+        type: "Feature"
+        geometry:
+          type: "Point"
+          coordinates: [
+            0.0
+            0.0
+          ]
+
+        properties:
+          prop0: "value0"
+      ]
+    for each in @text
+      @_geoJson.features.push {"type": "Feature", "geometry":{"type": "point", "coordinates": [+each.coordinates.longitude, +each.coordinates.latitude]}, "properties": each} if each.coordinates.latitude isnt "0"
+
 
   makeMap: ->
     map = $("body").append("<div id='map'></div>")
     L.mapbox.accessToken = "pk.eyJ1IjoiYXJtaW5hdm4iLCJhIjoiSTFteE9EOCJ9.iDzgmNaITa0-q-H_jw1lJw"
-    @_m = L.mapbox.map("map", "arminavn.ib1f592g",
+    @_m = L.mapbox.map("map",
       zoomAnimation: true
       zoomAnimationThreshold: 4
       inertiaDeceleration: 4000
@@ -157,117 +387,13 @@ L.ParaText = L.Class.extend(
       ).setView([
       42.36653483201389
       -71.12146908569336
-    ], 15)
-    # @_m.dragging.disable()
-    # @makeHeatMap()
+    ], 14)
+    @makeLayerController()
     @_m.boxZoom.enable()
     @_m.scrollWheelZoom.disable()
-    # @makeHeatMap()
-    # @makeD3onMap()
-    textControl = L.Control.extend(
-      options:
-        position: "topleft"
-      onAdd: (map) =>
-        @_m = map  
-          # create the control container with a particular class name
+  
 
-        @_textDomEl = L.DomUtil.create('div', 'container paratext-info')
-        @_el = L.DomUtil.create('svg', 'svg')
-        @_m.getPanes().overlayPane.appendChild(@_el)
-        L.DomUtil.enableTextSelection(@_textDomEl)  
-        @_m.getPanes().overlayPane.appendChild(@_textDomEl)
-        @_textDomObj = $(L.DomUtil.get(@_textDomEl))
-        @_textDomObj.css('width', $(@_m.getContainer())[0].clientWidth/4)
-        @_textDomObj.css('height', $(@_m.getContainer())[0].clientHeight)
-        @_textDomObj.css('background-color', 'white')
-        @_textDomObj.css('overflow', 'scroll')
-        L.DomUtil.setOpacity(L.DomUtil.get(@_textDomEl), 0.8)
-        # here it needs to check to see if there is any vewSet avalable if not it should get it from the lates instance or somethign
-        @_viewSet = @_m.getCenter() if @_viewSet is undefined
-        L.DomUtil.setPosition(L.DomUtil.get(@_textDomEl), L.point(40, -65), disable3D=0)
-        @_d3text = d3.select(".paratext-info")
-        .append("ul").style("list-style-type", "none").style("padding-left", "0px")
-        .attr("width", $(@_m.getContainer())[0].clientWidth/4)
-        .attr("height", $(@_m.getContainer())[0].clientHeight-80)
-        @_d3li = @_d3text
-        .selectAll("li")
-        .data(@text)
-        .enter()
-        .append("li")
-        @_d3li.style("font-family", "Helvetica")
-        .style("line-height", "2")
-        .style("margin-top", "10px")
-        .style("padding-right", "20px")
-        .style("padding-left", "40px")
-        .attr("id", (d, i) =>
-           "line-#{i}" 
-          )
-        .text((d,i) =>
-          @_leafletli = L.DomUtil.get("line-#{i}")
-          timeout = undefined
-          L.DomEvent.addListener @_leafletli, 'click', (e) ->
-            _this._m.setView(new L.LatLng(d.coordinates.latitude, d.coordinates.longitude), 19, animation: true, duration: 50)
-          L.DomEvent.addListener @_leafletli, 'mouseout', (e) ->
-            @_g = d3.select(_this._m.getPanes().overlayPane).select(".leaflet-zoom-animated").selectAll("g")
-            data = []
-            # data.push d.coordinates
-            @_g.data(data).exit().remove()
-
-          L.DomEvent.addListener @_leafletli, 'mouseover', (e) ->
-            $(this).css('cursor','pointer')
-            L.stamp _this._leafletli
-            timeout = setTimeout(->
-              _this._m._initPathRoot()
-              featureData =[]
-              featureData.push new L.LatLng(d.coordinates.latitude, d.coordinates.longitude) #val for key, val of d # new L.LatLng(d.lat, d.long)
-              @_g = d3.select(_this._m.getPanes().overlayPane).select(".leaflet-zoom-animated").selectAll("g")
-              @_g.data(featureData).enter().append("g").append("circle").attr("r", 60
-              ).attr("stroke", "lightcoral"
-              ).attr("fill", "none"
-              ).attr("cx", (d) ->
-                _this._m.latLngToLayerPoint(d).x
-              ).attr("cy", (d) ->
-                _this._m.latLngToLayerPoint(d).y
-              ).transition().delay(30).duration(1000).attr("r", 4
-              ).attr("cx", (d) ->
-                return _this._m.latLngToLayerPoint(d).x
-              ).attr("cy", (d) ->
-                return _this._m.latLngToLayerPoint(d).y
-              ).transition().delay(30).duration(1000).attr("r", 2
-              ).attr("stroke", "yellow"
-              ).attr("stroke-width", "5"
-              ).attr("fill", "none")
-              # _this._m.setView(new L.LatLng(d.coordinates.latitude, d.coordinates.longitude), 14, animation: true, duration: 500)
-            , 5)
-            return
-          , ->
-            return
-          clearTimeout timeout
-          d.date_time 
-        )
-        .style("font-size", "16px")
-        .style("color", "rgb(72,72,72)" )
-        .on("mouseover", (d,i) ->
-          $(this).css('cursor','pointer')
-          d3.select(this).transition().duration(0).style("color", "black").style("background-color", "rgb(208,208,208) ").style "opacity", 1
-          return 
-        ).on("mouseout", (d,i) ->
-          d3.select(this).transition().duration(1000).style("color", "rgb(72,72,72)").style("background-color", "white").style "opacity", 1
-          return
-        )  
-        .transition().duration(1).delay(1).style("opacity", 1)
-        @_m.whenReady =>
-        timeout = undefined
-        L.stamp @_leafletli
-    
-        _this._m._initPathRoot()
-     
-        @_textDomEl
-
-
-    )
-
-    @_m.addControl new textControl()
+    # 
   
     return @_m
 
@@ -287,27 +413,50 @@ addChainedAttributeAccessor = (obj, propertyAttr, attr) ->
 
 ##########
 #################
-queue().defer(d3.json, "https://data.cambridgema.gov/resource/ybny-g9cv.json").await (err, texts) ->
+
+
+queue().defer(d3.json, "https://data.cambridgema.gov/resource/ybny-g9cv.json?$limit=50000").await (err, texts) ->
   draw texts
   return
+# catch e
+#   queue().defer(d3.json, "https://data.cambridgema.gov/resource/ybny-g9cv.json").await (err, texts) ->
+#     draw texts
+#     return
+
+
+
 
 draw = (data) ->
+  serries = ["hour", "day", "month"]
   paratext = L.paratext(data)
   textmap = paratext.makeMap()
-  heatmap = paratext.makeHeatMap()
-  # d3onmap = paratext.makeD3onMap()
-  texts = d3.selectAll("li")
-  testdiv = paratext.makeDiv("testdiv")
-  L.DomUtil.create
+  paratext.parseGeoJson()
+  control = paratext.makeDiv("control", "bottomleft") 
+  timeout = undefined 
+  # d3.
+  paratext.timeserries("month")
 
-  # bding the L.D3 to jQuery and assiging data from and to datum
-  $texts = $(texts[0])
-  $texts.each ->
-    $(this).data "datum", $(this).prop("__data__")
-    return
-  # jQuery handles the clicks
-  timeout = undefined
+  # for each in serries
+  #   # setTimeout (->
+  #   #   timeserries = paratext.timeserries(each)
+  #   #   return
+  #   # ), 1000
+  #   timeout = setTimeout(->
+  #     # if timeout isnt 0 
+  #     timeserries = paratext.timeserries(each)
+  #       # timeout = 0
+  #     # return
+  #   , 1000)
+  #   # timeout = 0
+  #   # return 
+  #   # timeout = 0
+  # return
+  
+# timeout = 0
+$(document).ready ->
+  
 
-# update()
-# $('input').change update
+
+  
+
 
