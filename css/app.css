@@ -41,6 +41,6 @@ body { margin:0; padding:0; }
     stroke: #000;
     shape-rendering: crispEdges;
   }
-.c3-axis c3-axis-x {
-    color:  #777;
-  }
+#chart {
+  fill: #777;
+}
